@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,47 +31,33 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get Stripe secret key - first try Bolt integration, then payment_settings
-    let stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') || Deno.env.get('VITE_STRIPE_SECRET_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    if (!stripeSecretKey) {
-      // Fall back to payment_settings table
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      const settingsResponse = await fetch(
-        `${supabaseUrl}/rest/v1/payment_settings?payment_method=eq.stripe&select=*`,
+    const { data: settings, error: settingsError } = await supabase
+      .from('payment_settings')
+      .select('stripe_secret_key')
+      .eq('payment_method', 'stripe')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (settingsError || !settings?.stripe_secret_key) {
+      return new Response(
+        JSON.stringify({ error: 'Stripe is not configured. Please contact the administrator to set up Stripe payment settings.' }),
         {
+          status: 400,
           headers: {
-            'apikey': supabaseServiceKey,
-            'Authorization': `Bearer ${supabaseServiceKey}`,
+            ...corsHeaders,
+            'Content-Type': 'application/json',
           },
         }
       );
-
-      if (!settingsResponse.ok) {
-        throw new Error('Failed to fetch payment settings');
-      }
-
-      const settings = await settingsResponse.json();
-
-      if (!settings || settings.length === 0 || !settings[0].stripe_secret_key) {
-        return new Response(
-          JSON.stringify({ error: 'Stripe is not configured. Please add Stripe keys via Payment Settings or Bolt integration.' }),
-          {
-            status: 400,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      }
-
-      stripeSecretKey = settings[0].stripe_secret_key;
     }
 
-    // Create payment intent with Stripe
+    const stripeSecretKey = settings.stripe_secret_key;
+
     const paymentIntentResponse = await fetch('https://api.stripe.com/v1/payment_intents', {
       method: 'POST',
       headers: {
