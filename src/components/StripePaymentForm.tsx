@@ -109,16 +109,16 @@ export default function StripePaymentForm({
       });
 
       if (cardElementRef.current) {
-        card.mount(cardElementRef.current);
+        await card.mount(cardElementRef.current);
         setCardElement(card);
-
-        card.on('ready', () => {
-          setLoading(false);
-        });
 
         card.on('change', (event) => {
           setError(event.error ? event.error.message : '');
         });
+
+        setLoading(false);
+      } else {
+        throw new Error('Card element container not found');
       }
     } catch (err: any) {
       console.error('Payment initialization error:', err);
