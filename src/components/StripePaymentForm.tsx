@@ -118,7 +118,7 @@ export default function StripePaymentForm({
             iconColor: '#ef4444',
           },
         },
-        hidePostalCode: false,
+        hidePostalCode: true,
       });
 
       setTimeout(() => {
