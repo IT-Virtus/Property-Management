@@ -19,11 +19,8 @@ export const checkIsAdmin = async (): Promise<boolean> => {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    console.log('checkIsAdmin: No user found');
     return false;
   }
-
-  console.log('checkIsAdmin: Checking for user_id:', user.id);
 
   const { data, error } = await supabase
     .from('admin_users')
@@ -31,18 +28,10 @@ export const checkIsAdmin = async (): Promise<boolean> => {
     .eq('user_id', user.id)
     .maybeSingle();
 
-  console.log('checkIsAdmin: Query result:', { data, error });
-
   if (error) {
-    console.error('checkIsAdmin: Error querying admin_users:', error);
+    console.error('Error checking admin status:', error);
     return false;
   }
 
-  if (!data) {
-    console.log('checkIsAdmin: User not found in admin_users table');
-    return false;
-  }
-
-  console.log('checkIsAdmin: User IS admin');
-  return true;
+  return !!data;
 };
