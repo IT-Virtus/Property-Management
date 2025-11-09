@@ -25,10 +25,17 @@ export default function StripePaymentForm({
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const cardElementRef = useRef<HTMLDivElement>(null);
+  const [elements, setElements] = useState<any>(null);
 
   useEffect(() => {
     initializePayment();
   }, []);
+
+  useEffect(() => {
+    if (cardElementRef.current && elements && !cardElement) {
+      mountCardElement();
+    }
+  }, [elements, cardElement]);
 
   const initializePayment = async () => {
     try {
@@ -89,7 +96,19 @@ export default function StripePaymentForm({
       }
       setClientSecret(secret);
 
-      const elements = stripeInstance.elements();
+      const elementsInstance = stripeInstance.elements();
+      setElements(elementsInstance);
+    } catch (err: any) {
+      console.error('Payment initialization error:', err);
+      setError(err.message || 'Failed to initialize payment');
+      setLoading(false);
+    }
+  };
+
+  const mountCardElement = async () => {
+    try {
+      if (!elements || !cardElementRef.current) return;
+
       const card = elements.create('card', {
         style: {
           base: {
@@ -108,21 +127,17 @@ export default function StripePaymentForm({
         hidePostalCode: false,
       });
 
-      if (cardElementRef.current) {
-        await card.mount(cardElementRef.current);
-        setCardElement(card);
+      await card.mount(cardElementRef.current);
+      setCardElement(card);
 
-        card.on('change', (event) => {
-          setError(event.error ? event.error.message : '');
-        });
+      card.on('change', (event) => {
+        setError(event.error ? event.error.message : '');
+      });
 
-        setLoading(false);
-      } else {
-        throw new Error('Card element container not found');
-      }
+      setLoading(false);
     } catch (err: any) {
-      console.error('Payment initialization error:', err);
-      setError(err.message || 'Failed to initialize payment');
+      console.error('Card mount error:', err);
+      setError(err.message || 'Failed to mount card element');
       setLoading(false);
     }
   };
