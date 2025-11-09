@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { loadStripe, Stripe, StripeElements } from '@stripe/stripe-js';
 import { CreditCard, Lock } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface StripePaymentFormProps {
   amount: number;
@@ -79,25 +80,23 @@ export default function StripePaymentForm({
 
       // If not in env, check payment_settings table
       if (!stripePublishableKey) {
-        const settingsResponse = await fetch(`${supabaseUrl}/rest/v1/payment_settings?select=*`, {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`
-          }
-        });
+        const { data: settings, error } = await supabase
+          .from('payment_settings')
+          .select('stripe_publishable_key')
+          .eq('payment_method', 'stripe')
+          .eq('is_active', true)
+          .maybeSingle();
 
-        if (!settingsResponse.ok) {
+        if (error) {
+          console.error('Error fetching payment settings:', error);
           throw new Error('Failed to load payment settings');
         }
 
-        const settings = await settingsResponse.json();
-        const stripeSettings = settings.find((s: any) => s.payment_method === 'stripe');
-
-        if (!stripeSettings?.stripe_publishable_key) {
+        if (!settings?.stripe_publishable_key) {
           throw new Error('Stripe is not configured. Please contact the administrator.');
         }
 
-        stripePublishableKey = stripeSettings.stripe_publishable_key;
+        stripePublishableKey = settings.stripe_publishable_key;
       }
 
       // Initialize Stripe
