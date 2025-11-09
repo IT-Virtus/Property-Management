@@ -90,6 +90,7 @@ export default function StripePaymentForm({
 
   const initializeStripe = async () => {
     try {
+      console.log('=== Starting Stripe Initialization ===');
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -99,6 +100,7 @@ export default function StripePaymentForm({
 
       // If not in env, check payment_settings table
       if (!stripePublishableKey) {
+        console.log('Fetching Stripe key from database...');
         const { data: settings, error } = await supabase
           .from('payment_settings')
           .select('stripe_publishable_key')
@@ -116,18 +118,25 @@ export default function StripePaymentForm({
         }
 
         stripePublishableKey = settings.stripe_publishable_key;
+        console.log('Stripe key from DB:', stripePublishableKey.substring(0, 20) + '...');
+      }
+
+      // Validate key format
+      if (!stripePublishableKey.startsWith('pk_')) {
+        throw new Error('Invalid Stripe publishable key format');
       }
 
       // Initialize Stripe
-      console.log('Loading Stripe with key:', stripePublishableKey?.substring(0, 20) + '...');
+      console.log('Loading Stripe.js library...');
       const stripeInstance = await loadStripe(stripePublishableKey);
       if (!stripeInstance) {
-        throw new Error('Failed to load Stripe');
+        throw new Error('Failed to load Stripe library');
       }
-      console.log('Stripe loaded successfully');
+      console.log('✓ Stripe.js loaded successfully');
       setStripe(stripeInstance);
 
       // Create payment intent
+      console.log('Creating payment intent...');
       const response = await fetch(`${supabaseUrl}/functions/v1/create-payment-intent`, {
         method: 'POST',
         headers: {
@@ -142,17 +151,22 @@ export default function StripePaymentForm({
       });
 
       const result = await response.json();
+      console.log('Payment intent response:', { ok: response.ok, hasError: !!result.error });
 
       if (!response.ok || result.error) {
+        console.error('Payment intent error:', result.error);
         throw new Error(result.error || 'Failed to create payment intent');
       }
 
       const { clientSecret: secret } = result;
-      console.log('Client secret received:', secret ? 'Yes' : 'No');
+      if (!secret) {
+        throw new Error('No client secret received from server');
+      }
+      console.log('✓ Client secret received');
       setClientSecret(secret);
 
       // Create elements instance
-      console.log('Creating elements instance...');
+      console.log('Creating Stripe Elements...');
       const elementsInstance = stripeInstance.elements({
         clientSecret: secret,
         appearance: {
@@ -163,11 +177,17 @@ export default function StripePaymentForm({
         }
       });
 
-      console.log('Elements instance created:', !!elementsInstance);
+      if (!elementsInstance) {
+        throw new Error('Failed to create Elements instance');
+      }
+
+      console.log('✓ Elements instance created');
       setElements(elementsInstance);
       setLoading(false);
+      console.log('=== Stripe initialization complete ===');
     } catch (err: any) {
-      setError(err.message);
+      console.error('=== Stripe initialization failed ===', err);
+      setError(err.message || 'Failed to initialize payment system');
       setLoading(false);
     }
   };
