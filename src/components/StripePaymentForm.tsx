@@ -34,6 +34,16 @@ export default function StripePaymentForm({
   useEffect(() => {
     if (cardElementRef.current && elements && !cardElement) {
       mountCardElement();
+
+      const timeout = setTimeout(() => {
+        if (loading) {
+          console.error('Card element mount timeout');
+          setLoading(false);
+          setError('Payment form is taking too long to load. Please refresh and try again.');
+        }
+      }, 10000);
+
+      return () => clearTimeout(timeout);
     }
   }, [elements, cardElement]);
 
@@ -66,10 +76,12 @@ export default function StripePaymentForm({
         throw new Error('Invalid Stripe configuration');
       }
 
+      console.log('Loading Stripe with key:', stripePublishableKey.substring(0, 10) + '...');
       const stripeInstance = await loadStripe(stripePublishableKey);
       if (!stripeInstance) {
         throw new Error('Failed to load Stripe');
       }
+      console.log('Stripe loaded successfully');
       setStripe(stripeInstance);
 
       const response = await fetch(`${supabaseUrl}/functions/v1/create-payment-intent`, {
@@ -94,10 +106,13 @@ export default function StripePaymentForm({
       if (!secret) {
         throw new Error('No payment session created');
       }
+      console.log('Payment intent created successfully');
       setClientSecret(secret);
 
+      console.log('Creating Stripe elements...');
       const elementsInstance = stripeInstance.elements();
       setElements(elementsInstance);
+      console.log('Stripe elements created, ready to mount card');
     } catch (err: any) {
       console.error('Payment initialization error:', err);
       setError(err.message || 'Failed to initialize payment');
@@ -105,9 +120,12 @@ export default function StripePaymentForm({
     }
   };
 
-  const mountCardElement = async () => {
+  const mountCardElement = () => {
     try {
-      if (!elements || !cardElementRef.current) return;
+      if (!elements || !cardElementRef.current) {
+        console.error('Cannot mount: elements or ref missing');
+        return;
+      }
 
       const card = elements.create('card', {
         style: {
@@ -127,14 +145,17 @@ export default function StripePaymentForm({
         hidePostalCode: false,
       });
 
-      await card.mount(cardElementRef.current);
+      card.mount(cardElementRef.current);
       setCardElement(card);
 
       card.on('change', (event) => {
         setError(event.error ? event.error.message : '');
       });
 
-      setLoading(false);
+      card.on('ready', () => {
+        console.log('Card element is ready');
+        setLoading(false);
+      });
     } catch (err: any) {
       console.error('Card mount error:', err);
       setError(err.message || 'Failed to mount card element');
