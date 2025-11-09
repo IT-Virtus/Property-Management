@@ -22,35 +22,21 @@ export default function StripePaymentForm({
   const [cardElement, setCardElement] = useState<StripeCardElement | null>(null);
   const [clientSecret, setClientSecret] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingStep, setLoadingStep] = useState('Initializing...');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const cardElementRef = useRef<HTMLDivElement>(null);
-  const [elements, setElements] = useState<any>(null);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
     initializePayment();
   }, []);
 
-  useEffect(() => {
-    if (cardElementRef.current && elements && !cardElement) {
-      mountCardElement();
-
-      const timeout = setTimeout(() => {
-        if (loading) {
-          console.error('Card element mount timeout');
-          setLoading(false);
-          setError('Payment form is taking too long to load. Please refresh and try again.');
-        }
-      }, 10000);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [elements, cardElement]);
-
   const initializePayment = async () => {
     try {
       setLoading(true);
       setError('');
+      setLoadingStep('Loading configuration...');
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -58,6 +44,7 @@ export default function StripePaymentForm({
       let stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 
       if (!stripePublishableKey) {
+        setLoadingStep('Fetching payment settings...');
         const { data: settings, error: settingsError } = await supabase
           .from('payment_settings')
           .select('stripe_publishable_key')
@@ -76,14 +63,14 @@ export default function StripePaymentForm({
         throw new Error('Invalid Stripe configuration');
       }
 
-      console.log('Loading Stripe with key:', stripePublishableKey.substring(0, 10) + '...');
+      setLoadingStep('Loading Stripe...');
       const stripeInstance = await loadStripe(stripePublishableKey);
       if (!stripeInstance) {
         throw new Error('Failed to load Stripe');
       }
-      console.log('Stripe loaded successfully');
       setStripe(stripeInstance);
 
+      setLoadingStep('Creating payment session...');
       const response = await fetch(`${supabaseUrl}/functions/v1/create-payment-intent`, {
         method: 'POST',
         headers: {
@@ -106,28 +93,16 @@ export default function StripePaymentForm({
       if (!secret) {
         throw new Error('No payment session created');
       }
-      console.log('Payment intent created successfully');
       setClientSecret(secret);
 
-      console.log('Creating Stripe elements...');
+      setLoadingStep('Setting up payment form...');
       const elementsInstance = stripeInstance.elements();
-      setElements(elementsInstance);
-      console.log('Stripe elements created, ready to mount card');
-    } catch (err: any) {
-      console.error('Payment initialization error:', err);
-      setError(err.message || 'Failed to initialize payment');
-      setLoading(false);
-    }
-  };
 
-  const mountCardElement = () => {
-    try {
-      if (!elements || !cardElementRef.current) {
-        console.error('Cannot mount: elements or ref missing');
-        return;
+      if (!cardElementRef.current) {
+        throw new Error('Payment form not ready');
       }
 
-      const card = elements.create('card', {
+      const card = elementsInstance.create('card', {
         style: {
           base: {
             fontSize: '16px',
@@ -146,19 +121,29 @@ export default function StripePaymentForm({
       });
 
       card.mount(cardElementRef.current);
-      setCardElement(card);
+
+      card.on('ready', () => {
+        if (!mountedRef.current) {
+          mountedRef.current = true;
+          setCardElement(card);
+          setLoading(false);
+        }
+      });
 
       card.on('change', (event) => {
         setError(event.error ? event.error.message : '');
       });
 
-      card.on('ready', () => {
-        console.log('Card element is ready');
-        setLoading(false);
-      });
+      setTimeout(() => {
+        if (loading && !mountedRef.current) {
+          setLoading(false);
+          setError('Payment form loaded but may not be fully ready. You can try entering your card details.');
+        }
+      }, 5000);
+
     } catch (err: any) {
-      console.error('Card mount error:', err);
-      setError(err.message || 'Failed to mount card element');
+      console.error('Payment initialization error:', err);
+      setError(err.message || 'Failed to initialize payment');
       setLoading(false);
     }
   };
@@ -202,7 +187,8 @@ export default function StripePaymentForm({
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-md mx-auto">
         <div className="flex flex-col items-center justify-center py-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
-          <p className="text-gray-600">Loading payment form...</p>
+          <p className="text-gray-600 font-medium">{loadingStep}</p>
+          <p className="text-sm text-gray-500 mt-2">This may take a few seconds...</p>
         </div>
       </div>
     );
@@ -215,7 +201,10 @@ export default function StripePaymentForm({
           <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
             <h3 className="font-semibold text-gray-900 mb-2">Payment Setup Error</h3>
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600 mb-4">{error}</p>
+            <p className="text-sm text-gray-600">
+              Please try again or contact support if the problem persists.
+            </p>
           </div>
         </div>
         <button
