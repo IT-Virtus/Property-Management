@@ -96,11 +96,12 @@ export default function StripePaymentForm({
       setClientSecret(secret);
 
       setLoadingStep('Setting up payment form...');
-      const elementsInstance = stripeInstance.elements();
 
-      if (!cardElementRef.current) {
-        throw new Error('Payment form not ready');
-      }
+      setLoading(false);
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const elementsInstance = stripeInstance.elements();
 
       const card = elementsInstance.create('card', {
         style: {
@@ -120,26 +121,17 @@ export default function StripePaymentForm({
         hidePostalCode: false,
       });
 
-      card.mount(cardElementRef.current);
-
-      card.on('ready', () => {
-        if (!mountedRef.current) {
+      setTimeout(() => {
+        if (cardElementRef.current && !mountedRef.current) {
+          card.mount(cardElementRef.current);
           mountedRef.current = true;
           setCardElement(card);
-          setLoading(false);
-        }
-      });
 
-      card.on('change', (event) => {
-        setError(event.error ? event.error.message : '');
-      });
-
-      setTimeout(() => {
-        if (loading && !mountedRef.current) {
-          setLoading(false);
-          setError('Payment form loaded but may not be fully ready. You can try entering your card details.');
+          card.on('change', (event) => {
+            setError(event.error ? event.error.message : '');
+          });
         }
-      }, 5000);
+      }, 200);
 
     } catch (err: any) {
       console.error('Payment initialization error:', err);
