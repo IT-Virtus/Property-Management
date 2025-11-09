@@ -135,16 +135,24 @@ export default function MyListings({ onClose }: MyListingsProps) {
             listing_type: showPaymentForm.listing_type,
             bedrooms: showPaymentForm.bedrooms,
             bathrooms: showPaymentForm.bathrooms,
-            area: showPaymentForm.area,
+            area_sqft: showPaymentForm.area_sqft,
             address: showPaymentForm.address,
             city: showPaymentForm.city,
             state: showPaymentForm.state,
             zip_code: showPaymentForm.zip_code,
-            image_url: showPaymentForm.image_url,
-            agent_id: user?.id,
+            contact_name: user?.email || 'Property Owner',
+            contact_email: user?.email || '',
+            contact_phone: '',
+            features: showPaymentForm.features || [],
+            images: showPaymentForm.images || [],
+            status: 'active',
+            created_by: user?.id,
           });
 
-        if (propertyError) throw propertyError;
+        if (propertyError) {
+          console.error('Error creating property:', propertyError);
+          throw propertyError;
+        }
         alert('Payment successful! Your property has been automatically approved and is now live!');
       } else {
         alert('Payment successful! Your submission will be reviewed by our team.');
