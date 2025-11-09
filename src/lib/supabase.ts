@@ -18,7 +18,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export const checkIsAdmin = async (): Promise<boolean> => {
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return false;
+  if (!user) {
+    console.log('checkIsAdmin: No user found');
+    return false;
+  }
+
+  console.log('checkIsAdmin: Checking for user_id:', user.id);
 
   const { data, error } = await supabase
     .from('admin_users')
@@ -26,7 +31,18 @@ export const checkIsAdmin = async (): Promise<boolean> => {
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (error || !data) return false;
+  console.log('checkIsAdmin: Query result:', { data, error });
 
+  if (error) {
+    console.error('checkIsAdmin: Error querying admin_users:', error);
+    return false;
+  }
+
+  if (!data) {
+    console.log('checkIsAdmin: User not found in admin_users table');
+    return false;
+  }
+
+  console.log('checkIsAdmin: User IS admin');
   return true;
 };
