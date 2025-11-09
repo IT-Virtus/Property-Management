@@ -115,7 +115,6 @@ Deno.serve(async (req: Request) => {
         amount: amount.toString(),
         currency: currency.toLowerCase(),
         'metadata[submissionId]': submissionId,
-        'automatic_payment_methods[enabled]': 'true',
       }),
     });
 
