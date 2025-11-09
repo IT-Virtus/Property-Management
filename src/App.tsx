@@ -338,10 +338,14 @@ function AppContent() {
                       setFooterFormStatus(t('footer.thankYou'));
                       form.reset();
                     } else {
-                      const json = await response.json();
-                      if (json.errors) {
-                        setFooterFormStatus(json.errors.map((error: any) => error.message).join(', '));
-                      } else {
+                      try {
+                        const json = await response.json();
+                        if (json.errors) {
+                          setFooterFormStatus(json.errors.map((error: any) => error.message).join(', '));
+                        } else {
+                          setFooterFormStatus(t('footer.error'));
+                        }
+                      } catch {
                         setFooterFormStatus(t('footer.error'));
                       }
                     }
