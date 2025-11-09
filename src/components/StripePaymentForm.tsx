@@ -41,15 +41,25 @@ export default function StripePaymentForm({
     let cardElement: any;
 
     try {
+      console.log('Creating Stripe payment element...');
       cardElement = elements.create('payment', {
-        layout: 'tabs'
+        layout: {
+          type: 'tabs',
+          defaultCollapsed: false,
+        }
       });
 
+      console.log('Mounting Stripe element to DOM...');
       cardElement.mount(cardElementRef.current);
       setIsCardMounted(true);
       console.log('Stripe element mounted successfully');
 
+      cardElement.on('ready', () => {
+        console.log('Stripe element is ready');
+      });
+
       cardElement.on('change', (event: any) => {
+        console.log('Stripe element changed:', event);
         setCardComplete(event.complete);
         if (event.error) {
           setError(event.error.message);
@@ -57,14 +67,23 @@ export default function StripePaymentForm({
           setError('');
         }
       });
+
+      cardElement.on('loaderror', (event: any) => {
+        console.error('Stripe element load error:', event);
+        setError('Failed to load payment form. Please refresh and try again.');
+      });
     } catch (err: any) {
       console.error('Setup error:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to initialize payment form');
     }
 
     return () => {
       if (cardElement) {
-        cardElement.unmount();
+        try {
+          cardElement.unmount();
+        } catch (e) {
+          console.error('Error unmounting card element:', e);
+        }
       }
     };
   }, [elements, isCardMounted]);
